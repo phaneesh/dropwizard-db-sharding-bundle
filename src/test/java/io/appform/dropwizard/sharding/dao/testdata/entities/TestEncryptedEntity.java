@@ -41,7 +41,15 @@ import java.util.Objects;
                 parameters = {
                         @org.hibernate.annotations.Parameter(name="encryptorRegisteredName", value = "encryptedString")
                 }
-        )
+        ),
+    @TypeDef(
+        name = "EncryptedBinary",
+        typeClass = org.jasypt.hibernate5.type.EncryptedBinaryType.class,
+        parameters = {
+            @org.hibernate.annotations.Parameter(name="encryptorRegisteredName", value = "encryptedBinary")
+        }
+    )
+
 })
 
 @Entity
@@ -63,6 +71,11 @@ public class TestEncryptedEntity {
     @NotEmpty
     @Type(type = "EncryptedString")
     private String encText;
+
+    @Column(name = "enc_bin_data", nullable = false)
+    @NotEmpty
+    @Type(type = "EncryptedBinary")
+    private byte[] encBinary;
 
     @Override
     public boolean equals(Object o) {

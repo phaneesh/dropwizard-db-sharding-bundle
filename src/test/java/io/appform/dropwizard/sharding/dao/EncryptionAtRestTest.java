@@ -12,10 +12,12 @@ import io.appform.dropwizard.sharding.sharding.ShardManager;
 import io.appform.dropwizard.sharding.sharding.impl.ConsistentHashBucketIdExtractor;
 import io.appform.dropwizard.sharding.utils.ShardCalculator;
 import lombok.val;
+import org.apache.commons.lang3.RandomUtils;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.Configuration;
+import org.jasypt.encryption.pbe.StandardPBEByteEncryptor;
 import org.jasypt.encryption.pbe.StandardPBEStringEncryptor;
 import org.jasypt.hibernate5.encryptor.HibernatePBEEncryptorRegistry;
 import org.jasypt.iv.StringFixedIvGenerator;
@@ -47,18 +49,33 @@ public class EncryptionAtRestTest {
         configuration.setProperty("hibernate.show_sql", "true");
         configuration.setProperty("hibernate.format_sql", "true");
         configuration.addAnnotatedClass(TestEncryptedEntity.class);
-        StandardPBEStringEncryptor strongEncryptor = new StandardPBEStringEncryptor();
-        HibernatePBEEncryptorRegistry encryptorRegistry = HibernatePBEEncryptorRegistry.getInstance();
-        strongEncryptor.setAlgorithm("PBEWithHmacSHA256AndAES_256");
-        strongEncryptor.setPassword("eBhjVFN5LtP6hpwzWdjSkBQg");
-        strongEncryptor.setIvGenerator(new StringFixedIvGenerator("8SCaDgvH5xMD3KFE"));
-        encryptorRegistry.registerPBEStringEncryptor("encryptedString", strongEncryptor);
+        registerStringEncryptor();
+        registerBinaryEncryptor();
         StandardServiceRegistry serviceRegistry
                 = new StandardServiceRegistryBuilder().applySettings(
                         configuration.getProperties())
                 .build();
         return configuration.buildSessionFactory(serviceRegistry);
     }
+
+    private void registerStringEncryptor() {
+        StandardPBEStringEncryptor strongEncryptor = new StandardPBEStringEncryptor();
+        HibernatePBEEncryptorRegistry encryptorRegistry = HibernatePBEEncryptorRegistry.getInstance();
+        strongEncryptor.setAlgorithm("PBEWithHmacSHA256AndAES_256");
+        strongEncryptor.setPassword("eBhjVFN5LtP6hpwzWdjSkBQg");
+        strongEncryptor.setIvGenerator(new StringFixedIvGenerator("8SCaDgvH5xMD3KFE"));
+        encryptorRegistry.registerPBEStringEncryptor("encryptedString", strongEncryptor);
+    }
+
+    protected void registerBinaryEncryptor() {
+        StandardPBEByteEncryptor strongEncryptor = new StandardPBEByteEncryptor();
+        HibernatePBEEncryptorRegistry encryptorRegistry = HibernatePBEEncryptorRegistry.getInstance();
+        strongEncryptor.setAlgorithm("PBEWithHmacSHA256AndAES_256");
+        strongEncryptor.setPassword("eBhjVFN5LtP6hpwzWdjSkBQg");
+        strongEncryptor.setIvGenerator(new StringFixedIvGenerator("8SCaDgvH5xMD3KFE"));
+        encryptorRegistry.registerPBEByteEncryptor("encryptedBinary", strongEncryptor);
+    }
+
 
     @BeforeEach
     public void before() {
@@ -84,14 +101,17 @@ public class EncryptionAtRestTest {
 
     @Test
     public void testSave() throws Exception {
+        var encBinData = RandomUtils.nextBytes(24);
         TestEncryptedEntity testEntity = TestEncryptedEntity.builder()
                 .externalId("testId")
                 .encText("Some Text")
+                .encBinary(encBinData)
                 .build();
         lookupDao.save(testEntity);
 
         assertEquals(true, lookupDao.exists("testId"));
         assertEquals(false, lookupDao.exists("testId1"));
+        assertEquals(encBinData, testEntity.getEncBinary());
         Optional<TestEncryptedEntity> result = lookupDao.get("testId");
         assertEquals("Some Text",
                 result.get()
@@ -127,7 +147,6 @@ public class EncryptionAtRestTest {
             }
             return null;
         });
-
         assertFalse(updateStatus);
     }
 }
